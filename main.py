@@ -1,13 +1,12 @@
 __author__ = "yhhsu"
-import functions.read_config	as read_config
-#import function.read_func
-
+from func import GetData
+from func import FindFom
 
 def main():
 	# read config file
-	config_x = read_config.read()
-	print config_x
-
+	parameters, mask = GetData.read_input("fominput")
+	#result = (bestmassx1fom,xfom,bestmassx1snap,bestmassx1phi,bestmassx1theta,bestmassx1psi,bestmassx1time,counter) 
+	result = FindFom.FindFom(parameters,mask)
 	# read data path
 	#data = read_func.read_data(config_x)
 	# find fom

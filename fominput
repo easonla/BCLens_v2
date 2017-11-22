@@ -1,0 +1,17 @@
+Z 0.7853 
+snapmin 88 
+snapmax 90 
+Theta 1.08 
+Psi 3.03 
+Vx 4336.0 
+Vy 728.0 
+Vz -1315.0 
+TFudge 0.48 
+MaxShift 44.0
+SpectralIndex 3.6
+ConstrainPhi 1
+Massdata 1
+Xray_bin1 1
+Xray_bin2 0
+Xray_bin3 0
+SZ 0
