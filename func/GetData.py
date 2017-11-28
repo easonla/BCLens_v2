@@ -165,72 +165,6 @@ def GetBulletData(filename,data):
 			data.data[i,j]=float(oneddata[i+j*data.nx])
 	return data
 
-def FindEnzoCentroids(pf): 
-    start = time.time()
-    #print 'Starting Centroid finding\n'
-    mass=list()
-    x=list()
-    y=list()
-    z=list()
-    NPart = 0 # Particle counter	
-    for i in range(pf.h.num_grids): # Read in all of the particle masses and positions
-	PixelVolume = pf.h.grids[i]['dx'] * pf.h.grids[i]['dy'] * pf.h.grids[i]['dz']
-	for j in range(int(pf.h.grid_particle_count[i])):
-		#if NPart%100000 == 0:
-			#print '*'
-		mass.append(pf.h.grids[i]['particle_mass'][j] * PixelVolume)	
-     		x.append(pf.h.grids[i]['particle_position_x'][j])
-     		y.append(pf.h.grids[i]['particle_position_y'][j])
-   		z.append(pf.h.grids[i]['particle_position_z'][j])
-		NPart = NPart + 1
-
-    Masses=zeros([2])
-    NumPart=zeros([2])
-    Centroids=zeros([2,3])
-    # Finding the 2 different masses
-    Masses[0] = mass[0]
-    #print 'Mass of particle type 0  = %.4f'%Masses[0]
-    while (Masses[1] == 0):
-		pc = int(NPart * rand()) # Keep randomly choosing particles until I have found 2 different masses
-		#print 'Trying another mass = %.3f'%mass[pc]
-		if abs(mass[pc] - Masses[0]) > 1E-8:
-			Masses[1] = mass[pc]
-			#print 'Mass of particle type 1  = %.4f'%Masses[1]
-    for n in range(NPart): # n cycles through the number of particles of this type
-		#if n%100000 == 0:
-			#print '*'
-		if abs(mass[n] - Masses[0]) < 1E-8:	
-			NumPart[0] = NumPart[0] + 1
-			Centroids[0,0] = Centroids[0,0] + x[n]
-			Centroids[0,1] = Centroids[0,1] + y[n]
-			Centroids[0,2] = Centroids[0,2] + z[n]
-		else:	
-			NumPart[1] = NumPart[1] + 1
-			Centroids[1,0] = Centroids[1,0] + x[n]
-			Centroids[1,1] = Centroids[1,1] + y[n]
-			Centroids[1,2] = Centroids[1,2] + z[n]
-
-    for k in range(2): # k denotes the bullet or main particles
-		if NumPart[0] > NumPart[1]: # Swap everything to put the bullet particles first
-			TempNum = NumPart[0]
-			NumPart[0] = NumPart[1]
-			NumPart[1] = TempNum
-			TempMass = Masses[0]
-			Masses[0] = Masses[1]
-			Masses[1] = TempMass
-			for m in range(3):
-				TempCentroid = Centroids[0,m]
-				Centroids[0,m] = Centroids[1,m]
-				Centroids[1,m] = TempCentroid
-
-		for m in range(3):
-			Centroids[k,m] = Centroids[k,m] / NumPart[k]
-
-    elapsed = (time.time()-start)
-    print "Elapsed time to locate centroids = "+str(elapsed)
-
-    return [NumPart, Masses, Centroids]
-
 def GenerateMatrix(snapmin, snapmax, psi, theta):
 	FomMatrix = {}
 	MinVz = BulletConstants.BulletVz - 3.0 * BulletConstants.BulletSigVz # Minimum Bullet radial velocity consistent with observations
@@ -267,4 +201,33 @@ def GenerateMatrix(snapmin, snapmax, psi, theta):
 				FomMatrix[snapmin-1,Psi,Theta] = (1.0E6,1.0E6,0.0,BulletDMPos,MainDMPos,simtime)
 	return FomMatrix
 
-
+def ReadLookups(Z):
+	# This subroutine reads in the data from the APEC lookup tables and places it in an array
+	# The data is interpolated to get the data for the required Z (metallicity)
+	ApecData = zeros([281,4]) # Array to hold the data
+	for bin in range(3): #bin 0 is 0.5-2kev, bin 1 is 2-5kev, bin 2 is 5-8kev, bin 3 is 0.5-8kev
+		if bin == 0:
+			infile = open(lageconfig.toppath+'bullet/data/apec/apec_xray_0.5_2.0.txt','r')
+		elif bin == 1:
+			infile = open(lageconfig.toppath+'bullet/data/apec/apec_xray_2.0_5.0.txt','r')
+		elif bin == 2:
+			infile = open(lageconfig.toppath+'bullet/data/apec/apec_xray_5.0_8.0.txt','r')
+		lines = infile.readlines()
+		infile.close()
+		counter = 0
+		for line in lines:
+			if line.strip().split()[0] == 'LogT': # Skips header line
+				continue
+			minZ = max(0, int(round((Z * 10))))
+			maxZ = minZ + 1
+			if maxZ > 10:
+				maxZ = 10
+				minZ = 9
+			f = (maxZ-10.0*Z) * float(line.strip().split()[minZ+1]) + (10.0*Z-minZ) * float(line.strip().split()[maxZ+1])
+			ApecData[counter,bin] = f
+			if bin == 0:
+				ApecData[counter,3] = f # This bin is just the sum of the other three
+			else:
+				ApecData[counter,3] = ApecData[counter,3] + f	
+			counter=counter+1
+	return ApecData

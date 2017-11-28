@@ -7,21 +7,21 @@ from GetData import GetData, GetPF, GenerateMatrix, FindEnzoCentroids
 # FindEnzoCentroids
 # EulerAngles
 # SimpleFom
-def FindFom(Parameters,Mask):
-    (Z, snapmin, snapmax,theta, psi, TFudge,MaxShift, ConstrainPhi, SpectralIndex) = Parameters
-	# This is a new, faster Fom finding routine that uses only mass and X-ray, and searches for a 
-	# minimum in time, psi, and theta.
-	# This version first scans through a Theta,Psi matrix to determine the optimum.
-    (dataA, sigmaA, maskA,maskANull, 
-        dataB1,sigmaB1, dataB2, sigmaB2, dataB3, sigmaB3, 
-        dataC, sigmaC, dataD, sigmaD, maskD, maskDNull, dataE, sigmaE) = GetData() 
-    mask_sum = maskA.data.sum()
+# def FindFom(Parameters,Mask):
+#     (Z, snapmin, snapmax,theta, psi, TFudge,MaxShift, ConstrainPhi, SpectralIndex) = Parameters
+# 	# This is a new, faster Fom finding routine that uses only mass and X-ray, and searches for a 
+# 	# minimum in time, psi, and theta.
+# 	# This version first scans through a Theta,Psi matrix to determine the optimum.
+#     data  = (dataA, sigmaA, maskA,maskANull, 
+#         dataB1,sigmaB1, dataB2, sigmaB2, dataB3, sigmaB3, 
+#         dataC, sigmaC, dataD, sigmaD, maskD, maskDNull, dataE, sigmaE) = GetData() 
+#     mask_sum = maskA.data.sum()
 
-    FomMatrix = GenerateMatrix(snapmin, snapmax, psi, theta)
-    FomMatrix = TimeStrip(FomMatrix, snapmin, snapmax, psi, theta)
-    FomMatrix = ThetaStrip(FomMatrix, snapmin, snapmax, psi, theta)
+#     FomMatrix = GenerateMatrix(snapmin, data, snapmax, psi, theta)
+#     FomMatrix = TimeStrip(FomMatrix, data, snapmin, snapmax, psi, theta)
+#     FomMatrix = ThetaStrip(FomMatrix, data, snapmin, snapmax, psi, theta)
 
-    print FomMatrix
+#     print FomMatrix
  #    Fom = Minimization(FomMatrix)
 
  #    # Next, run the Minimization search
@@ -73,35 +73,35 @@ def FindFom(Parameters,Mask):
 		
     return (1.0E5,0.0,0,0.0,0.0,0.0,0.0,0) # Returns garbage if it fails to find an optimum
 
-def ThetaStrip(FomMatrix, snapmin, snapmax, psi, theta):
+def ThetaStrip(FomMatrix, data, snapmin, snapmax, psi, theta):
     snap = bestsnap
     besttheta = theta
     for Theta in range(ThetaMin, ThetaMax+DeltaTheta, DeltaTheta):
-            phi = 0.0
-            theta = Theta / 100.0
-            (fom,xfom,phi,BulletDMPos,MainDMPos,simtime) = FomMatrix[snap,Psi,Theta]
-            if fom > 9.9E4: # Failed Vz test
-                print 'In ThetaStripe, outside allowed Vz, snap = %d, Psi = %.3f, Theta = %.3f\n'%(snap,psi,theta)
+        phi = 0.0
+        theta = Theta / 100.0
+        (fom,xfom,phi,BulletDMPos,MainDMPos,simtime) = FomMatrix[snap,Psi,Theta]
+        if fom > 9.9E4: # Failed Vz test
+            print 'In ThetaStripe, outside allowed Vz, snap = %d, Psi = %.3f, Theta = %.3f\n'%(snap,psi,theta)
+            sys.stdout.flush()
+            continue
+        else:
+            try:
+                print 'In Theta Stripe, within allowed Vz, snap = %d, Psi = %.3f, Theta = %.3f\n'%(snap,psi,theta)
+                pf = GetPF(snap)
+                (fom,xfom,phi) = SimpleFom(pf,data,phi=phi,theta=theta,psi=psi,ConstrainPhi=ConstrainPhi,Mask=Mask,Z=Z,TFudge=TFudge,SpectralIndex=SpectralIndex,MaxShift=MaxShift)
+                FomMatrix[snap,Psi,Theta] = (fom,xfom,phi,BulletDMPos,MainDMPos,simtime)
+                print "In Theta stripe, fom = %f, snap = %d, Psi = %.3f, Theta = %.3f"%(fom,snap,psi,theta)
                 sys.stdout.flush()
-                continue
-            else:
-                try:
-                    print 'In Theta Stripe, within allowed Vz, snap = %d, Psi = %.3f, Theta = %.3f\n'%(snap,psi,theta)
-                    pf = GetPF(snap)
-                    (fom,xfom,phi) = SimpleFom(pf,data,phi=phi,theta=theta,psi=psi,ConstrainPhi=ConstrainPhi,Mask=Mask,Z=Z,TFudge=TFudge,SpectralIndex=SpectralIndex,MaxShift=MaxShift)
-                    FomMatrix[snap,Psi,Theta] = (fom,xfom,phi,BulletDMPos,MainDMPos,simtime)
-                    print "In Theta stripe, fom = %f, snap = %d, Psi = %.3f, Theta = %.3f"%(fom,snap,psi,theta)
-                    sys.stdout.flush()
-                except:
-                    FomMatrix[snap,Psi,Theta] = (fom,xfom,phi,BulletDMPos,MainDMPos,simtime)
-            if fom < bestfom:
-                bestfom = fom
-                bestsnap = snap
-                besttheta = theta
+            except:
+                FomMatrix[snap,Psi,Theta] = (fom,xfom,phi,BulletDMPos,MainDMPos,simtime)
+        if fom < bestfom:
+            bestfom = fom
+            bestsnap = snap
+            besttheta = theta
     return FomMatrix
 
 
-def TimeStrip(FomMatrix, snapmin, snapmax, psi, theta):
+def TimeStrip(FomMatrix, data, snapmin, snapmax, psi, theta):
     Theta = int(100*theta)
     Psi = int(100*psi)
     bestfom = 1.0E6
@@ -154,7 +154,6 @@ def TimeStrip(FomMatrix, snapmin, snapmax, psi, theta):
     return FomMatrix
 
 def GenerateMatrix(snapmin, snapmax, psi, theta):
-    FomMatrix = {}
     MinVz = BulletConstants.BulletVz - 3.0 * BulletConstants.BulletSigVz # Minimum Bullet radial velocity consistent with observations
     MaxVz = BulletConstants.BulletVz + 3.0 * BulletConstants.BulletSigVz # Maximum Bullet radial velocity consistent with observations
     DeltaPsi = 3 # Using Psi and Theta 100* psi and theta, so I can use integers

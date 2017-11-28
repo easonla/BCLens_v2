@@ -1,12 +1,12 @@
 __author__ = "yhhsu"
 from func import GetData
-from func import FindFom
+from func import FindFom_Origin
 
 def main():
 	# read config file
 	parameters, mask = GetData.read_input("fominput")
 	#result = (bestmassx1fom,xfom,bestmassx1snap,bestmassx1phi,bestmassx1theta,bestmassx1psi,bestmassx1time,counter) 
-	result = FindFom.FindFom(parameters,mask)
+	result = FindFom_Origin.FindFom(parameters,mask)
 	# read data path
 	#data = read_func.read_data(config_x)
 	# find fom
