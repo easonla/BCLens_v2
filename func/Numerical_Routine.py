@@ -13,6 +13,3 @@ def EulerAngles(phi=0.0,theta=0.0,psi=0.0):
     R[2,1]=-np.sin(theta)*np.cos(phi)
     R[2,2]=np.cos(theta)
     return R
-
-def SimpleFom(pf,data,phi=0.0,theta=0.0,psi=0.0,ConstrainPhi=True,Mask=(1,0,0,0,0,0,0),Z=1.0, TFudge=1.0, SpectralIndex=3.8, MaxShift=0.0):
-    return (1.0E5, 1.0E5, 0.0)

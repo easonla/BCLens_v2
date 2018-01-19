@@ -1,7 +1,9 @@
 import BulletConstants
 import Config
+import numpy as np
 from Classes import Array2d
 from yt.mods import *
+
 
 def read_input(filename):
 	toppath = Config.toppath
@@ -204,14 +206,14 @@ def GenerateMatrix(snapmin, snapmax, psi, theta):
 def ReadLookups(Z):
 	# This subroutine reads in the data from the APEC lookup tables and places it in an array
 	# The data is interpolated to get the data for the required Z (metallicity)
-	ApecData = zeros([281,4]) # Array to hold the data
+	ApecData = np.zeros([281,4]) # Array to hold the data
 	for bin in range(3): #bin 0 is 0.5-2kev, bin 1 is 2-5kev, bin 2 is 5-8kev, bin 3 is 0.5-8kev
 		if bin == 0:
-			infile = open(lageconfig.toppath+'bullet/data/apec/apec_xray_0.5_2.0.txt','r')
+			infile = open(Config.toppath+'data/apec/apec_xray_0.5_2.0.txt','r')
 		elif bin == 1:
-			infile = open(lageconfig.toppath+'bullet/data/apec/apec_xray_2.0_5.0.txt','r')
+			infile = open(Config.toppath+'data/apec/apec_xray_2.0_5.0.txt','r')
 		elif bin == 2:
-			infile = open(lageconfig.toppath+'bullet/data/apec/apec_xray_5.0_8.0.txt','r')
+			infile = open(Config.toppath+'data/apec/apec_xray_5.0_8.0.txt','r')
 		lines = infile.readlines()
 		infile.close()
 		counter = 0

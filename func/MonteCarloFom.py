@@ -1,75 +1,62 @@
+import time
 import numpy as np
 import math
+import sys
+import pickle
 from scipy.ndimage import gaussian_filter, convolve
 
-from classed import Array2d
-from GetDate import ReadLookups
-from FetchEnzo import ProjectEnzoData, 
+from Classes import Array2d
+from GetData import ReadLookups
+from FetchEnzo import ProjectEnzoData
 
-class Func:
-    def __init__(self,data1list, data2list, shifteddata1list,sigmalist, masklist, align):
-        self.data1 = data1list
-        self.data2 = data2list
-        self.shifteddata = shifteddata1list
-        self.sigma = sigmalist
-        self.mask  = masklist
-        self.align = align
-        self.n     = len(data1list)
-        self.EPS = 0 
-        self.evals = 0
-        self.f = 0
+def SetAlign(dataB1, phi, theta, psi, ConstrainPhi = False, MaxShift=0.0):
+    # This sets the alignment parameters
+    # Components 0 and 1 are the x and y aligment offsets.
+    # Components 2 and 3 are a shift between the Mass dataset and the others
+    # MaxShift gives the max allowed shift in kpc
+    # Component 4 is the angular rotation in radians
+    align=Align()
+    align.dmax[0]=(dataB1.xmax)
+    align.dmax[1]=(dataB1.ymax)
+    align.dmin[0]=-align.dmax[0]
+    align.dmin[1]=-align.dmax[1]
+    align.dmax[2]= MaxShift
+    align.dmin[2]=-align.dmax[2]
+    align.dmax[3]= MaxShift
+    align.dmin[3]=-align.dmax[3]
+    align.dmin[4]=0.0
+    align.dmax[4]=2.0*np.pi
 
-    def operator():
-        for i in range(self.n): self.align.d[i] = x[i]
-        self.evals += 1 
-        self.f = _shift()
+    align.d[0] = 0.0
+    align.d[1] = 0.0
+    align.d[2] = 0.0
+    align.d[3] = 0.0
 
-    def _shift():
-        fom = np.zeros([self.n])
-        for k in range(self.n):
-            for i in range(self.data2[k].nx):
-                x = self.data2[k].nx[i]
-                for j in range(self.data2[k].ny):
-                    y = self.data2[k].ny[j]
-                    xprime = x*np.cos(self.align.d[4])+y*np.sin(self.align.d[4])+self.align.d[0]
-                    yprime = x*np.sin(self.align.d[4])+y*np.cos(self.align.d[4])+self.align.d[1]
-                    if k==0: ## Shift Mass data relative to Other
-                        xprime += self.align.d[2]
-                        yprime += self.align.d[3]
-                    self.shifteddata[k].data[i+j*self.data2[k].nx]=_interp(self.data1[k],xprime,yprime)
+    if ConstrainPhi:
+        align.dmin[0] = -250.0
+        align.dmax[0] =  250.0
+        align.dmin[1] = -250.0
+        align.dmax[1] =  250.0
 
+    if np.cos(psi)>=0.0:
+        align.d[4] = 0.22  - np.arctan( np.cos(theta)*np.tan(psi) ) # Seed phi close to final result
+        if ConstrainPhi:
+            align.dmin[4] = 0.12  - np.arctan( np.cos(theta)*np.tan(psi) )
+            align.dmax[4] = 0.32  - np.arctan( np.cos(theta)*np.tan(psi) )
+    else:
+        align.d[4] = 0.22  + np.pi - np.arctan( np.cos(theta)*np.tan(psi) ) # Seed phi close to final result
+        if ConstrainPhi:
+            align.dmin[4] = 0.12  + np.pi - np.arctan( np.cos(theta)*np.tan(psi) ) # Seed psi close to final result
+            align.dmax[4] = 0.32  + np.pi - np.arctan( np.cos(theta)*np.tan(psi) ) # Seed psi close to final result
 
-    def _interp(data,xprime,yprime):
-        d = 0
-        i = int(math.floor(xprime -  data.xmin)/data.dx)
-        j = int(math.floor(yprime -  data.ymin)/data.dy)
-        for m in range(i-1,i+2):
-            deltax = math.fabs((xprime - data.x[m])/data.dx)
-            for n in range(j-1,j+2):
-                deltay = math.fabs((yprime - data.y[n])/data.dy)
-                d = d + kernel(deltax,deltay) * data.data[m+n*data.nx]
-        return d
-
-    def _kernel(deltax,deltay):
-        if (deltax >= 1.) or (deltay >= 1.):
-            return 0
-        else: return (1.0-deltax)*(1.0-deltay)
-
-def newpoint(x,xmin,xmax,r):
-    newx[:] = xmin[:] - 0.01 
-    for i in range(5):
-        while (newx[i] < xmin[i]) and (newx[i] > xmax[i]):
-            randy = rand()
-            newx[i] = (x[i] - r[i]) + 2 * r[i] * randy
-    return newx
-
-def prob(f, newf, T):
-    return np.exp((f-newf/T))
-
+    return align
 
 def SimpleFom(pf,data,phi=0.0,theta=0.0,psi=0.0,ConstrainPhi=True,Mask=(1,0,0,0,0,0,0),Z=1.0, TFudge=1.0, SpectralIndex=3.8, MaxShift=0.0):
     (dataA,sigmaA,maskA,maskANull,dataB1,sigmaB1,dataB2,sigmaB2,dataB3,sigmaB3,dataC,sigmaC,dataD,sigmaD,maskD,maskDNull,dataE,sigmaE) = data
     mask_sum = maskA.data.sum()
+    # picklesave(dataA,sigmaA,maskA,maskANull,dataB1,sigmaB1,dataB2,sigmaB2,dataB3,sigmaB3,dataC,sigmaC,dataD,sigmaD,maskD,maskDNull,dataE,sigmaE,sumsim,xraysim1,xraysim2,xraysim3,szsim)
+    # pickleread()
+
     try:
         dmsim=Array2d(2.0*dataA.xmin,2.0*dataA.xmax,2*dataA.nx,2.0*dataA.ymin,2.0*dataA.ymax,2*dataA.ny)
         masssim=Array2d(2.0*dataA.xmin,2.0*dataA.xmax,2*dataA.nx,2.0*dataA.ymin,2.0*dataA.ymax,2*dataA.ny)
@@ -104,50 +91,51 @@ def SimpleFom(pf,data,phi=0.0,theta=0.0,psi=0.0,ConstrainPhi=True,Mask=(1,0,0,0,
         print "Error in SimpleFom routine",sys.exc_info()[0]
         return (1.0E5, 1.0E5, 0.0) # If there's an error, give it a large FOM
 
+def picklesave(dataA,sigmaA,maskA,maskANull,dataB1,sigmaB1,dataB2,sigmaB2,dataB3,sigmaB3,dataC,sigmaC,dataD,sigmaD,maskD,maskDNull,dataE,sigmaE,sumsim,xraysim1,xraysim2,xraysim3,szsim):
+    data = {'dataA':dataA,'dataB1':dataB1,'dataB2':dataB2,'dataB3':dataB3,'dataC':dataC,'dataD':dataD,'dataE':dataE}
+    sigmas = {'sigmaA':sigmaA,'sigmaB1':sigmaB1,'sigmaB2':sigmaB2,'sigmaB3':sigmaB3,'sigmaC':sigmaC,'sigmaD':sigmaD,'sigmaE':sigmaE}
+    masks = {'maskA':maskA,'maskANull':maskANull,'maskD':maskD,'maskDNull':maskDNull}
+    sims = {'sumsim':sumsim,'xraysim1':xraysim1,'xraysim2':xraysim2,'xraysim3':xraysim3,'szsim':szsim}
 
-def FindBestShift_Python(data1list,data2list,sigmalist,masklist,align,tol):
-    # This routine finds the best alignment between n sets of 2D
-    # arrays.  data1 is a list of the larger arrays, and data2 is a list of the smaller,
-    # unshifted arrays. sigma is a list of the data standard deviation
+    pickle_output = open('projected_data_for_test.pkl', 'wb')
+    pickle.dump(data, pickle_output)
+    pickle.dump(sigmas, pickle_output)
+    pickle.dump(masks, pickle_output)
+    pickle.dump(sims, pickle_output)
+    pickle_output.close()
+    print "Done with pickle"
+    sys.stdout.flush()
+    sys.exit()
 
-    start = time.time()
+def pickleread():
+    pickle_output = open('projected_data_for_test.pkl', 'rb')
+    data = pickle.load(pickle_output)
+    sigmas = pickle.load(pickle_output)
+    masks = pickle.load(pickle_output)
+    sims = pickle.load(pickle_output)
+    dataA = data['dataA']
+    dataB1 = data['dataB1']
+    dataB2 = data['dataB2']
+    dataB3 = data['dataB3']
+    dataC = data['dataC']
+    dataD = data['dataD']
+    dataE = data['dataE']
+    sigmaA = sigmas['sigmaA']
+    sigmaB1 = sigmas['sigmaB1']
+    sigmaB2 = sigmas['sigmaB2']
+    sigmaB3 = sigmas['sigmaB3']
+    sigmaC = sigmas['sigmaC']
+    sigmaD = sigmas['sigmaD']
+    sigmaE = sigmas['sigmaE']
+    maskA = masks['maskA']
+    maskANull = masks['maskANull']
+    maskD = masks['maskD']
+    maskDNull = masks['maskDNull']
+    sumsim = sims['sumsim']
+    xraysim1 = sims['xraysim1']
+    xraysim2 = sims['xraysim2']
+    xraysim3 = sims['xraysim3']
+    szsim = sims['szsim']
+    return (dataA,sigmaA,maskA,maskANull,dataB1,sigmaB1,dataB2,sigmaB2,dataB3,sigmaB3,dataC,sigmaC,dataD,sigmaD,maskD,maskDNull,dataE,sigmaE,sumsim,xraysim1,xraysim2,xraysim3,szsim)
 
-    numarrays = len(data1list)
-    shifteddata1list=list()
-
-	for i in range(numarrays):
-		shifteddata1list.append(Array2d(data2list[i].xmin,data2list[i].xmax,data2list[i].nx,data2list[i].ymin,data2list[i].ymax,data2list[i].ny))
-
-	diff=0
-	gtol=tol
-    func = Func(data1list, data2list, shifteddata1list, sigmalist, masklist, align)
-    p = align.d[:]
-    pmin = align.dmin[:]
-    pmax = align.dmax[:]
-    radius = np.zeros([5])
-    kmax = 10000
-    #Temperature
-    T0 = 1.0
-    while func.evals < kmax:
-        T = T0 * (kmax - Func.evals) / kmax # Decrease the temperature as evaluation proceeds
-        radius [:] = (pmax[:] - pmin[:]) * (kmax - Func.evals) / kmax
-        newp = newpoint(p,pmin,pmax,r)
-        func.operator()
-        newf = func.f
-        randy = rand()
-        pr = prob(f,newf,T)
-        if pr > randy:
-            for i in range(5):
-                p[i] = newp[i]
-        if f < bestf :
-            bestf = f
-            for i in range(5):
-                bestp[i]=p[i]
-        for i in range(5):
-            func.align.d = bestp[i]
-        fom = bestf
-
-    elapsed = (time.time()-start)
-    print "Elapsed time to find optimal alignment = "+str(elapsed)+"\n"
-    return [shifteddata1list,align,fom]
 

@@ -1,10 +1,11 @@
 import numpy as np
 import time
 from yt.mods import *
+from yt.visualization.volume_rendering.api import ProjectionCamera
 
 import BulletConstants
 from Numerical_Routine import EulerAngles
-
+from Classes import Array2d
 
 def _EnzoTXRay(field,data):
     ApecData = data.get_field_parameter('ApecData')
@@ -85,7 +86,7 @@ def FindEnzoCentroids(pf):
     NPart = 0 # Particle counter	
     for i in range(pf.h.num_grids): # Read in all of the particle masses and positions
         PixelVolume = pf.h.grids[i]['dx'] * pf.h.grids[i]['dy'] * pf.h.grids[i]['dz']
-            for j in range(int(pf.h.grid_particle_count[i])):
+        for j in range(int(pf.h.grid_particle_count[i])):
             #if NPart%100000 == 0:
             #print '*'
             mass.append(pf.h.grids[i]['particle_mass'][j] * PixelVolume)	
@@ -198,7 +199,7 @@ def ProjectEnzoData(pf,mass,phi=0.0,theta=0.0,psi=0.0,zmin=-3000.0,zmax=3000.0,D
     if not DMProject:
 	print "Using yt Ray casting for DM"
         projcam=ProjectionCamera(center,normal_vector,width,resolution,"Dark_Matter_Density",north_vector=north_vector,pf=pf, interpolated=True)
-        DM.data =  projcam.snapshot()[:,:,0] * MassFactor 
+        DM.data =  projcam.snapshot()[:,:] * MassFactor 
 
     projcam=ProjectionCamera(center,normal_vector,width,resolution,"Density",north_vector=north_vector,pf=pf, interpolated=True)
     mass.data =  projcam.snapshot()[:,:] * MassFactor
