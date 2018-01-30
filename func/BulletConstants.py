@@ -80,6 +80,7 @@ LogRhoMin = -12.0
 LogPressureMin = -3.0
 LogXrayMin=-12.0
 
+CriticalSurfaceDensity = 0.3963
 
 #************END MAIN PROGRAM*************************
 

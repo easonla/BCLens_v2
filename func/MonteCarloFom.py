@@ -76,11 +76,18 @@ def SimpleFom(pf,data,phi=0.0,theta=0.0,psi=0.0,ConstrainPhi=True,Mask=(1,0,0,0,
         data1list=list((sumsim,xraysim1))
         data2list=list((dataA,dataB1))
         sigmalist=list((sigmaA,sigmaB1))
+
+        # Mask (1,0) = > mass constrain
+        # Mask (1,1) = > mass + xray constrain
+        # Mask (0,0,1) = > GravLens constrain (S+W)
+        # Mask (0,1,1) = > GravLens + xray constrain
+        if Mask[3] == 1:
+            lens = Lens(sumsim)        
+
         if Mask[1] == 1:
             masklist=list((maskA,maskA))
         else:
             masklist=list((maskA,maskANull))
-
         [shifteddata1list,align,fom]=FindBestShift(data1list, data2list, sigmalist, masklist, align, tol)
         phi = align.d[4]
         shiftedxsim1=shifteddata1list[1]

@@ -24,7 +24,7 @@ class Lens:
         self._findvalue_by_potential(mass)
     def _findvalue_by_potential(self,mass):
         # faster ~47s for 220x220
-        sigmacr = 0.3963
+        sigmacr = BulletConstants.CriticalSurfaceDensity
         ds = mass.dx * mass.dy
         MassFactor = BulletConstants.cm_per_kpc**2 * ds / (BulletConstants.g_per_Msun * 1E10)
         _kappa = mass.data/sigmacr/MassFactor
@@ -181,11 +181,11 @@ def get_shear():
 def chi_strong(x0,Lens,galaxies):
     sigma = 0.6
     chi = 0
-    dx,dy,phi = x0[0],x0[1],x0[2]
+    dx,dy,phi = x0[0]/4.413,x0[1]/4.413,x0[2]/4.413
     for key in galaxies:
         gal = galaxies[key]
         gal.clean()
-        gal.update_image(dx,dy,phi)
+        gal.update_image(dx,dy,phi) 
         for i in range(gal.n):
             xh = gal.xc[i]
             yh = gal.yc[i]

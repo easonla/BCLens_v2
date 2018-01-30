@@ -1,4 +1,9 @@
 data
+.ipynb_checkpoints
 Fom_test.py
 func/Shift_n_Mask_Offset_c
 func/MonteCarloFom_Origin.py
+*.ipynb
+.ipynb
+projected_data_for_test.pkl
+func/*.pyc
