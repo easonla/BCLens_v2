@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def EulerAngles(phi=0.0,theta=0.0,psi=0.0):
+def euler_angles(phi=0.0, theta=0.0, psi=0.0):
     R=np.zeros([3,3])
     R[0,0]=np.cos(psi)*np.cos(phi)-np.cos(theta)*np.sin(phi)*np.sin(psi)
     R[0,1]=np.cos(psi)*np.sin(phi)+np.cos(theta)*np.cos(phi)*np.sin(psi)
@@ -13,3 +13,10 @@ def EulerAngles(phi=0.0,theta=0.0,psi=0.0):
     R[2,1]=-np.sin(theta)*np.cos(phi)
     R[2,2]=np.cos(theta)
     return R
+
+
+def change_coord(pos, dx, dy, phi):
+    c, s = np.cos(phi), np.sin(phi)
+    R = np.array([[c, -s], [s, c]])
+    new_pos = np.dot(R, pos.T).T + np.array([[dx, dy]])
+    return new_pos
