@@ -1,16 +1,8 @@
-import time
 import numpy as np
-import math
-import sys
-import pickle
-from scipy.ndimage import gaussian_filter, convolve
 from scipy.interpolate import griddata
 
 import BulletConstants
 from Classes import Array2d
-from get_data import ReadLookups
-from FetchEnzo import ProjectEnzoData
-from MonteCarloFom_Origin import SetAlign
 from GravLens import get_shear, get_galaxies
 
 
@@ -313,10 +305,3 @@ class Lens:
         k[1:-1, 0] = p[:, -1]
         k[1:-1, -1] = p[:, 0]
         return k
-
-
-def change_coord(pos, dx, dy, phi):
-    c, s = np.cos(phi), np.sin(phi)
-    R = np.array([[c, -s], [s, c]])
-    new_pos = np.dot(R, pos.T).T + np.array([[dx, dy]])
-    return new_pos

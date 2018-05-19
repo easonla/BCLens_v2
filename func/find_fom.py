@@ -3,7 +3,7 @@ import sys
 import BulletConstants
 from routines import euler_angles
 from find_best_fit import SimpleFom
-# from MonteCarloFom_Origin import SimpleFomFom  ##Use old c# routine, varified
+# from MonteCarloFom_Origin import SimpleFom ##Use old c# routine, varified
 from get_data import GetData, GetPF
 from FetchEnzo import FindEnzoCentroids
 
@@ -138,9 +138,10 @@ def FindFom(Parameters, Mask):
             bestsnap = snap
             besttheta = theta
 
-        # Next, run the Minimization search
+    # Next, run the Minimization search
     counter = 0
     MaxCounter = (snapmax - snapmin + 1) * NPsi * NTheta
+    print "Run Minimization Search, MaxCounter = %d " % (MaxCounter)
     while counter < MaxCounter:
         counter = counter + 1
         print "%d times through Minimization Routine - Snap = %d, Psi = %.2f, Theta = %.2f" % (
@@ -191,4 +192,4 @@ def FindFom(Parameters, Mask):
                 except:
                     continue
 
-        return (1.0E5, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0)  # Returns garbage if it fails to find an optimum
+    return (1.0E5, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0)  # Returns garbage if it fails to find an optimum

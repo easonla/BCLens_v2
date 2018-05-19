@@ -1,3 +1,5 @@
+import pyfits
+
 import BulletConstants
 import Config
 import numpy as np
@@ -29,7 +31,7 @@ def read_input(filename):
         theta, psi, TFudge,
         MaxShift, ConstrainPhi, SpectralIndex
     )
-    mask = (Mass_Constrain, Xray1_Constrain, Xray2_Constrain, Xray3_Constrain, SZ_Constrain)
+    mask = (Mass_Constrain, Xray1_Constrain, Xray2_Constrain, Xray3_Constrain, SZ_Constrain, 0)
     return parameters, mask
 
 
@@ -161,8 +163,9 @@ def GetData():
     sigmaE = GetBulletData(datapathsE, sigmaE)  # Radio Sigma
 
     return (
-    dataA, sigmaA, maskA, maskANull, dataB1, sigmaB1, dataB2, sigmaB2, dataB3, sigmaB3, dataC, sigmaC, dataD, sigmaD,
-    maskD, maskDNull, dataE, sigmaE)
+        dataA, sigmaA, maskA, maskANull, dataB1, sigmaB1, dataB2, sigmaB2, dataB3, sigmaB3, dataC, sigmaC, dataD,
+        sigmaD,
+        maskD, maskDNull, dataE, sigmaE)
 
 
 def GetBulletData(filename, data):
@@ -243,3 +246,35 @@ def ReadLookups(Z):
                 ApecData[counter, 3] = ApecData[counter, 3] + f
             counter = counter + 1
     return ApecData
+
+
+def GetKernels():
+    # This reads in kernels used for image manipulation
+
+    toppath = Config.toppath
+    datapathszekernel = toppath + 'data/sze/bullet_transfer_rescaled_small.fits'
+    datapathkernel60 = toppath + 'data/kernel60.dat'
+    datapathkernel20 = toppath + 'data/kernel20.dat'
+    datapathkernel15 = toppath + 'data/kernel15.dat'
+    szekernel = Array2d(0.0, 400.0, 113, 0.0, 400.0, 113)
+    datapathkernel5 = toppath + 'data/kernel5.dat'
+    szekernel = GetBulletFits(datapathszekernel, szekernel)
+
+    kernel60 = Array2d(0.0, 1.0, 110, 0.0, 1.0, 110)
+    kernel60 = GetBulletData(datapathkernel60, kernel60)
+    kernel20 = Array2d(0.0, 1.0, 110, 0.0, 1.0, 110)
+    kernel20 = GetBulletData(datapathkernel20, kernel20)
+    kernel15 = Array2d(0.0, 1.0, 110, 0.0, 1.0, 110)
+    kernel15 = GetBulletData(datapathkernel15, kernel15)
+    kernel5 = Array2d(0.0, 1.0, 110, 0.0, 1.0, 110)
+    kernel5 = GetBulletData(datapathkernel5, kernel5)
+    return (szekernel, kernel60, kernel20, kernel15, kernel5)
+
+
+def GetBulletFits(filename, data):
+    fits = pyfits.open(filename)
+    fitsdata = fits[0].data
+    for i in range(data.nx):
+        for j in range(data.ny):
+            data.data[i, j] = fitsdata[i, j]
+    return data

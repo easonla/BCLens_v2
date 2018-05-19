@@ -1,5 +1,7 @@
 from yt.mods import *
 from yt.visualization.volume_rendering.api import ProjectionCamera
+from scipy.special import gamma
+from numpy.random import rand
 
 import BulletConstants
 from routines import euler_angles
@@ -78,9 +80,9 @@ def _EnzoSynch(field, data):
     Eta = 1.00  # Fudge Factor
     PFactor = (P - 2.0) / (P + 1.0) * gamma(P / 4.0 + 19.0 / 12.0) * gamma(P / 4.0 - 1.0 / 12.0) * gamma(
         (P + 5.0) / 4.0) / gamma((P + 7.0) / 4.0)
-    B = sqrt(data['Bx'] ** 2 + data['By'] ** 2 + data['Bz'] ** 2)
+    B = np.sqrt(data['Bx'] ** 2 + data['By'] ** 2 + data['Bz'] ** 2)
     omegac = BulletConstants.OmegaCPreFactor * B
-    omega = 2.0 * pi * BulletConstants.RadioFrequency * (1 + BulletConstants.redshift)
+    omega = 2.0 * np.pi * BulletConstants.RadioFrequency * (1 + BulletConstants.redshift)
     return Eta * BulletConstants.RadioPreFactor * PFactor * pow(B, 3.0) * pow(omega / omegac, -(P - 1.0) / 2.0)
 
 
@@ -166,7 +168,7 @@ def ProjectEnzoData(pf, mass, phi=0.0, theta=0.0, psi=0.0, zmin=-3000.0, zmax=30
     DM = Array2d(mass.xmin, mass.xmax, mass.nx, mass.ymin, mass.ymax, mass.ny)
     if DMProject:
         print "Doing Separate DM Projection"
-        DM = ProjectEnzoDM(pf, mass, 1, zmin, zmax, -psi, -theta, -phi)
+        # DM = ProjectEnzoDM(pf, mass, 1, zmin, zmax, -psi, -theta, -phi)
     else:
         print "Skipping Separate DM Projection"
     start = time.time()
@@ -233,3 +235,125 @@ def ProjectEnzoData(pf, mass, phi=0.0, theta=0.0, psi=0.0, zmin=-3000.0, zmax=30
     print "Elapsed time to run Enzo gas projection = " + str(elapsed)
 
     return [DM, mass, Xray1, Xray2, Xray3, SZ]
+
+
+def ProjectEnzoTemp(pf, mass, phi=0.0, theta=0.0, psi=0.0, zmin=-3000.0, zmax=3000.0):
+    # Projects 3D Enzo data onto a 2D grid
+    # Returns mass data, Three Xray intensities, and SZ data.
+
+    start = time.time()
+    xpixels = mass.nx
+    ypixels = mass.ny
+    PixelArea = mass.dx * mass.dy
+    Temp = Array2d(mass.xmin, mass.xmax, mass.nx, mass.ymin, mass.ymax, mass.ny)
+    SZ = Array2d(mass.xmin, mass.xmax, mass.nx, mass.ymin, mass.ymax, mass.ny)
+    BMag = Array2d(mass.xmin, mass.xmax, mass.nx, mass.ymin, mass.ymax, mass.ny)
+    Synch = Array2d(mass.xmin, mass.xmax, mass.nx, mass.ymin, mass.ymax, mass.ny)
+
+    add_field('TXRay', function=_EnzoTXRay, units=r"\rm{cm}^{-3}\rm{s}^{-1}",
+              projected_units=r"\rm{cm}^{-2}\rm{s}^{-1}", validators=[ValidateParameter('ApecData')], take_log=False)
+    add_field('XRay', function=_EnzoXRay, units=r"\rm{cm}^{-3}\rm{s}^{-1}", projected_units=r"\rm{cm}^{-2}\rm{s}^{-1}",
+              validators=[ValidateParameter('ApecData')], take_log=False)
+    add_field('BMag', function=_EnzoBMag, take_log=False)
+    add_field('Synch', function=_EnzoSynch, units=r"\rm{cm}^{-3}\rm{s}^{-1}",
+              projected_units=r"\rm{cm}^{-2}\rm{s}^{-1}", take_log=False)
+    center = [(mass.xmin + mass.xmax) / 2.0, (mass.ymin + mass.ymax) / 2.0, (zmin + zmax) / 2.0]  # Data Center
+    normal_vector = (0.0, 0.0, 1.0)
+    north_vector = (0.0, 1.0, 0.0)
+    R = euler_angles(phi, theta, psi)
+    normal_vector = np.dot(R, normal_vector)
+    north_vector = np.dot(R, north_vector)
+    width = (mass.xmax - mass.xmin, mass.ymax - mass.ymin, zmax - zmin)
+    resolution = (mass.nx, mass.ny)
+
+    MassFactor = BulletConstants.cm_per_kpc ** 2 * PixelArea / (BulletConstants.g_per_Msun * 1E10)
+    XFactor = BulletConstants.cm_per_kpc ** 2 * PixelArea * BulletConstants.AreaFactor
+    BFactor = 1.0 / (BulletConstants.cm_per_kpc * width[2])
+    SynchFactor = XFactor * BulletConstants.microJanskys_per_CGS
+    projcam = ProjectionCamera(center, normal_vector, width, resolution, "TXRay", north_vector=north_vector, pf=pf,
+                               interpolated=True)
+    Temp.data = projcam.snapshot()[:, :]
+    projcam = ProjectionCamera(center, normal_vector, width, resolution, "XRay", north_vector=north_vector, pf=pf,
+                               interpolated=True)
+    Temp.data = Temp.data / projcam.snapshot()[:, :]
+    projcam = ProjectionCamera(center, normal_vector, width, resolution, "BMag", north_vector=north_vector, pf=pf,
+                               interpolated=True)
+    BMag.data = projcam.snapshot()[:, :] * BFactor
+    projcam = ProjectionCamera(center, normal_vector, width, resolution, "Synch", north_vector=north_vector, pf=pf,
+                               interpolated=True)
+    Synch.data = projcam.snapshot()[:, :] * SynchFactor
+    elapsed = (time.time() - start)
+    print "Elapsed time to run Enzo temp projection = " + str(elapsed)
+    return [Temp, BMag, Synch]
+
+
+def EnclosedMass(msim, R):
+    MassWithinR = np.zeros([2])
+    MainCentroid = [msim.x[38], msim.y[43]]
+    BulletCentroid = [msim.x[87], msim.y[55]]
+    for i in range(msim.nx):
+        for j in range(msim.ny):
+            rmain = np.sqrt((msim.x[i] - MainCentroid[0]) ** 2 + (msim.y[j] - MainCentroid[1]) ** 2)
+            rbullet = np.sqrt((msim.x[i] - BulletCentroid[0]) ** 2 + (msim.y[j] - BulletCentroid[1]) ** 2)
+            if rmain < R:
+                MassWithinR[0] = MassWithinR[0] + msim.data[i, j]
+            if rbullet < R:
+                MassWithinR[1] = MassWithinR[1] + msim.data[i, j]
+    return MassWithinR
+
+
+"""
+def ProjectEnzoDM(pf, data, parttype, zmin, zmax, phi=0.0, theta=0.0, psi=0.0):
+    # Projects 3D mass data onto a 2D grid
+    # Euler angles are used to rotate the data if desired
+    xpixels = data.nx
+    ypixels = data.ny
+    xy = xpixels * ypixels
+    DM = Array2d(data.xmin, data.xmax, data.nx, data.ymin, data.ymax, data.ny)
+
+    num = int(pf.h.grid_particle_count.sum())  # of particles
+
+    class P(Structure):
+        _fields_ = [("x", c_float), ("y", c_float), ("z", c_float)]
+
+    Pptr = (P * num)()  # Pointer to an array of Pos values
+    massptr = (c_float * num)()  # Pointer to an array of input mass values
+    valueptr = (c_float * xy)()  # Pointer to an array of output mass values
+
+    start = time.time()
+    n = 0  # Particle counter	
+    for i in range(pf.h.num_grids):
+        PixelVolume = pf.h.grids[i]['dx'] * pf.h.grids[i]['dy'] * pf.h.grids[i]['dz']
+        for j in range(int(pf.h.grid_particle_count[i])):
+            massptr[n] = pf.h.grids[i]['particle_mass'][j] * PixelVolume
+            Pptr[n].x = pf.h.grids[i]['particle_position_x'][j]
+            Pptr[n].y = pf.h.grids[i]['particle_position_y'][j]
+            Pptr[n].z = pf.h.grids[i]['particle_position_z'][j]
+            if massptr[n] > 10.0:
+                # massptr[n] = massptr[n]*100.0
+                print 'X = %.3f, Y=%.3f, Z=%.3f\n' % (Pptr[n].x, Pptr[n].y, Pptr[n].z)
+            n = n + 1
+
+    xmin = c_float(data.xmin)
+    xmax = c_float(data.xmax)
+    ymin = c_float(data.ymin)
+    ymax = c_float(data.ymax)
+    zmin = c_float(zmin)
+    zmax = c_float(zmax)
+    phi = c_float(phi)
+    theta = c_float(theta)
+    psi = c_float(psi)
+    preptime = time.time() - start
+
+    projectdmlib.DMProject(num, Pptr, massptr, xmin, xmax, ymin, ymax, zmin, zmax, xpixels, ypixels, theta, phi, psi,
+                           valueptr)
+
+    for i in range(xpixels):
+        for j in range(ypixels):
+            DM.data[i, j] = valueptr[
+                i + j * xpixels]  # valueptr[i+j*xpixels] - Why did I need to flip these? valueptr[j+i*ypixels]
+
+    elapsed = (time.time() - start)
+    print "Elapsed time to run Enzo DM projection = " + str(elapsed), "Prep time = " + str(preptime)
+
+    return DM"""

@@ -1,8 +1,10 @@
-import numpy as np
 import sys
+import time
+import traceback
+
+import numpy as np
 from scipy.ndimage import gaussian_filter
 from scipy.optimize import basinhopping
-
 
 from Classes import Array2d, Align
 from get_data import ReadLookups
@@ -86,23 +88,20 @@ def SimpleFom(pf, data, phi=0.0, theta=0.0, psi=0.0, ConstrainPhi=True, Mask=(1,
         data2list = list((dataA, dataB1))
         sigmalist = list((sigmaA, sigmaB1))
 
-        # Mask (1,0) = > mass constrain
-        # Mask (1,1) = > mass + xray constrain
-        # Mask (0,0,1) = > GravLens constrain (S+W)
-        # Mask (0,1,1) = > GravLens + xray constrain
-        # if Mask[3] == 1:
-        #     lens = Lens(sumsim)
-
         if Mask[1] == 1:
             masklist = list((maskA, maskA))
         else:
             masklist = list((maskA, maskANull))
 
-        [fom, xfom, phi] = FindBestShift(data1list, data2list, sigmalist, masklist, align, tol)
-        # phi = align.d[4]
-        # shiftedxsim1 = shifteddata1list[1]
-        # xray1chisquared = pow((dataB1.data - shiftedxsim1.data) / sigmaB1.data, 2) * maskA.data
-        # xfom = xray1chisquared.sum() / mask_sum
+        def get_items(optfunc):
+            if optfunc:
+                return optfunc.total_chiq_sq, optfunc.images_align.chi_sq_list[1], optfunc.align.d[4]
+            else:
+                return 1E5, 1E5, 0
+
+        optfunc = FindBestShift(data1list, data2list, sigmalist, masklist, align, tol)
+        (fom, xfom, phi) = get_items(optfunc)
+
         return (fom, xfom, phi)
     except:
         print "Error in SimpleFom routine", sys.exc_info()[0]
@@ -119,24 +118,61 @@ def FindBestShift(data1list, data2list, sigmalist, masklist, align, tol):
     target = optfunc_massx(data1list, data2list, shifteddata1list, sigmalist, masklist, align)
     x0 = [align.d[0], align.d[1], align.d[4]]
 
+    kmax = 50
+
+    # def print_fun(x, f, accepted):
+    #     print("at minimum %.4f accepted %d" % (f, int(accepted)))
+
+    class anealStep(object):
+        def __init__(self, stepsize=500, kmax=kmax, \
+                     xmin=[align.dmin[0] / 2, align.dmin[1] / 2, align.dmin[4]], \
+                     xmax=[align.dmax[0] / 2, align.dmax[1] / 2, align.dmax[4]]):
+            self.stepsize = stepsize
+            self.xmin = xmin
+            self.xmax = xmax
+            self.k = 0
+
+        def __call__(self, x):
+            s = self.stepsize
+            while True:
+                xnew = x.copy()
+                xnew[:-1] += np.random.uniform(-s, s, x[:-1].shape)
+                xnew[-1] += np.random.uniform(- np.pi, np.pi)
+                if np.all(xnew < self.xmax) and np.all(xnew > self.xmin):
+                    break
+            self.k += 1
+            return xnew
+
     SLSQPopt = {
         'method': 'SLSQP',
         'jac': False,
-        'bounds': ((align.dmin[0], align.dmax[0]), (align.dmin[1], align.dmax[1]), (align.dmin[4], align.dmax[4])),
+        'bounds': (
+        (align.dmin[0] / 2, align.dmax[0] / 2), (align.dmin[1] / 2, align.dmax[1] / 2), (align.dmin[4], align.dmax[4])),
         'tol': 1e-3
     }
-    BHopts = {'niter': 1000,
-              'T': 20,
+
+    BHopts = {'niter': 20,
+              'T': 5,
+              'stepsize': 50,
+              'interval': 1,
               'minimizer_kwargs': SLSQPopt,
+              'take_step': anealStep(),
               'disp': False,
-              'niter_success': 10
+              'niter_success': 5,
+              'callback': None
               }
-    try :
+
+    try:
+        start = time.time()
         bestfit = basinhopping(target.fit, x0, **BHopts)
-        if bestfit['minimization_failures'] == 0 :
-            target.fit(bestfit['x'])
-            return [target.images_align.chi_sq, target.images_align.chi_sq_list[1], target.align.d[4]]
-        else : return (1.0E5, 1.0E5, 0.0)
-    except :
-        print "Error in basinhopping routine", sys.exc_info()[0]
-        return (1.0E5, 1.0E5, 0.0)  # If there's an error, give it a large FOM
+        elapsed_time = time.time() - start
+        print "Elapsed time to optimize chi_sq = {:.2f} chi_sq = {:.2f}".format(elapsed_time, bestfit['fun'])
+        target.fom_compute(bestfit['x'])
+        return target
+
+    except Exception, err:
+        print "Error in basinhopping routine",
+        exc_info = sys.exc_info()
+        traceback.print_exception(*exc_info)
+        ####### Issue
+        return None  # If there's an error, give it a large FOM
