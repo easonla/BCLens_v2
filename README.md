@@ -11,6 +11,6 @@ key feature including:
 Loss function is defined as chi^2 = chi_mass^2 + chi_xray^2
 
 # Result
-![Mass Lensing result](https://github.com/easonla/BCLens_v2/mass_lensing.png)
-![Xray result](https://github.com/easonla/BCLens_v2/Xray.png)
+![Mass Lensing result](https://github.com/easonla/BCLens_v2/tree/master/output/mass_lensing.png)
+![Xray result](https://github.com/easonla/BCLens_v2/tree/master/output/Xray.png)
 
